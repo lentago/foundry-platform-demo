@@ -88,10 +88,10 @@
 | Target group name | foundry-dev-app-tg |
 | Target group ARN | arn:aws:elasticloadbalancing:us-east-1:`<ACCOUNT_ID>`:targetgroup/foundry-dev-app-tg/`<TG_ID>` |
 | ACM certificate ARN | arn:aws:acm:us-east-1:`<ACCOUNT_ID>`:certificate/`<CERT_ID>` |
-| Route 53 hosted zone ID | Z0043272378EN4FXXRUG1 |
-| Route 53 nameservers | ns-444.awsdns-55.com, ns-953.awsdns-55.net, ns-1155.awsdns-16.org, ns-1999.awsdns-57.co.uk |
+| Route 53 hosted zone ID | Captured from `terraform output route53_zone_id` after first apply. Locked by `prevent_destroy`. |
+| Route 53 nameservers | Captured from `terraform output route53_name_servers` after first apply. Authoritative — `prevent_destroy` on the zone keeps these stable across teardown cycles. |
 | Domain name | icecreamtofightwith.com |
-| Domain registrar | Squarespace (nameservers delegated to Route 53) |
+| Domain registrar | Squarespace (nameservers delegated to Route 53). Transfer to Route 53 Domains planned — see [issue #48](https://github.com/PitziLabs/foundry-platform-demo/issues/48) and `docs/REGISTRAR_TRANSFER.md`. |
 | CloudWatch log group | /ecs/foundry-dev-app |
 | ECS auto-scaling | Not yet configured (Phase 3d) |
 
@@ -263,7 +263,7 @@ _These steps cannot be automated with Terraform and must be performed manually w
 | Add user to docker group | After OS reinstall | `sudo usermod -aG docker $USER` + restart terminal | Yes |
 | Authenticate Docker to ECR | Every 12 hours | `aws ecr get-login-password ... \| docker login ...` | Yes |
 | Build and push container image to ECR | After ECR repo creation or image changes | `docker build` + `docker push` | Yes |
-| Update nameservers at Squarespace | After Route 53 hosted zone creation (or recreation) | Squarespace domain settings → custom NS | Only needed when zone NS records change |
+| Update nameservers at Squarespace | Once, after first Route 53 hosted zone creation | Squarespace domain settings → custom NS | `prevent_destroy` on the zone keeps NSes stable. Eliminated entirely after registrar transfer (see `docs/REGISTRAR_TRANSFER.md`). |
 | Restore Secrets Manager secret after destroy | Every `terraform apply` within 7 days of destroy | `aws secretsmanager restore-secret` + `terraform import` | Yes |
 | Restore KMS key after destroy | Every `terraform apply` within 30 days of destroy | `aws kms cancel-key-deletion` + `aws kms enable-key` (+ import if needed) | Yes |
 | Confirm SNS email subscription | After first `terraform apply` of monitoring module, or after destroy/recreate | Check cpitzi@gmail.com for AWS confirmation email, click link | Yes (re-subscribing sends a new confirmation) |
@@ -280,11 +280,11 @@ _Operational knowledge for day-to-day work with this environment._
 | **KMS key deletion** | KMS key has `deletion_window_in_days = 30`. On destroy, Terraform schedules deletion (doesn't delete immediately). On next apply, it cancels the scheduled deletion and restores the key. No data loss, no new key ID needed. |
 | **ECR authentication** | `aws ecr get-login-password --region us-east-1 --profile foundry \| docker login --username AWS --password-stdin $(aws sts get-caller-identity --query Account --output text --profile foundry).dkr.ecr.us-east-1.amazonaws.com` — Token valid for 12 hours. Required before docker push/pull to ECR. |
 | **Push image to ECR** | `docker build -t $(terraform output -raw ecr_repository_url):latest .` then `docker push ...`. Build from `app/` directory. |
-| **Squarespace NS delegation** | One-time manual step: In Squarespace domain settings, set custom nameservers to the 4 Route 53 NS values. Check propagation with `dig icecreamtofightwith.com NS +short`. |
+| **Squarespace NS delegation** | One-time manual step (truly one-time now — the zone has `prevent_destroy`): In Squarespace domain settings, set custom nameservers to the 4 Route 53 NS values from `terraform output route53_name_servers`. Check propagation with `dig icecreamtofightwith.com NS +short`. Eliminated entirely after registrar transfer (`docs/REGISTRAR_TRANSFER.md`). |
 | **ACM cert validation wait** | `terraform apply` will hang at `aws_acm_certificate_validation` until DNS propagation completes and ACM verifies the CNAME records. Can take 5-45 minutes. Safe to Ctrl+C and re-apply later. |
 | **Docker group on ChromeOS** | User must be in `docker` group: `sudo usermod -aG docker $USER`. Requires terminal restart (or `newgrp docker`) to take effect. |
 | **ECS task startup time** | After apply, tasks take ~60-90 seconds to pull image, start, and pass 3 consecutive health checks (30s interval). 503 from ALB is expected during this window. |
-| **Route 53 hosted zone on destroy** | Hosted zone is not free to recreate — new zone gets new NS records, requiring another Squarespace nameserver update. Consider whether to exclude from `terraform destroy` in daily teardown, or accept the re-delegation step. |
+| **Route 53 hosted zone on destroy** | Zone has `lifecycle { prevent_destroy = true }` — `terraform destroy` will refuse to drop it, preserving NS delegation across teardown cycles. To genuinely remove the zone (e.g., tearing down the project), remove the lifecycle block, apply, then destroy. See issue #48 and `docs/REGISTRAR_TRANSFER.md` for the durable fix. |
 | **SNS subscription on recreate** | After `terraform destroy` + `terraform apply`, the SNS email subscription is recreated in "pending confirmation" state. No alarms are delivered until you click the confirmation link in the new email from AWS. Check Gmail immediately after apply. |
 | **Testing alarm pipeline** | `aws cloudwatch set-alarm-state --alarm-name "foundry-dev-ecs-cpu-high" --state-value ALARM --state-reason "Test" --profile foundry` — Forces alarm to ALARM state. Auto-recovers on next evaluation period. Useful for validating the SNS→email chain. |
 | **INSUFFICIENT_DATA alarms** | Normal after fresh deploy. Alarms need 1–3 evaluation periods of metric data before transitioning to OK. RDS and ElastiCache alarms may take 5–15 minutes to settle. |
