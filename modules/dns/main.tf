@@ -2,14 +2,24 @@
 
 # --- Route 53 Hosted Zone ---
 # This makes Route 53 the authoritative DNS for the domain.
-# After creation, you must update nameservers at your registrar (Squarespace)
-# to point to the NS records Route 53 assigns. This is a one-time manual step.
+# After creation, you must update nameservers at the registrar to point to
+# the NS records Route 53 assigns.
+#
+# prevent_destroy: a fresh hosted zone gets a fresh set of NS records, which
+# forces another manual update at the registrar. Blocking destroy keeps the
+# NS delegation stable across teardown/recreate cycles. See issue #48 and
+# docs/REGISTRAR_TRANSFER.md for the durable fix (move registrar to Route 53
+# Domains).
 resource "aws_route53_zone" "main" {
   name    = var.domain_name
   comment = "${var.project}-${var.environment} hosted zone"
 
   tags = {
     Name = "${var.project}-${var.environment}-zone"
+  }
+
+  lifecycle {
+    prevent_destroy = true
   }
 }
 
