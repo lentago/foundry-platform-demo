@@ -100,7 +100,7 @@ DNS ←──→ ALB (certificate ↔ alias record)
 
 ## Implementation Workflow
 
-When implementation is complete, open a pull request as the final step. Do not stop at "pushed the branch" — the PR is part of the deliverable. PR title should match or clearly refine the issue title. PR body must include `Closes #<number>` so merge closes the issue, plus a short summary of what changed and why. Do not merge the PR yourself; auto-merge is configured and will handle it once checks pass.
+PR workflow + auto-merge arming protocol is fleet-wide; see `~/repos/CLAUDE.md`.
 
 ## Key Files for Context
 
