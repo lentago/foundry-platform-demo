@@ -92,6 +92,17 @@ resource "aws_ecs_service" "app" {
   desired_count   = var.desired_count
   launch_type     = "FARGATE"
 
+  # Pin the Fargate platform version explicitly instead of defaulting to
+  # "LATEST". Fargate resolves "LATEST" at task launch and then pins it for
+  # that task's lifetime, so running tasks do NOT automatically move to newer
+  # platform versions — and AWS retires old versions on a schedule (e.g. the
+  # Jun 2026 PV retirement in this account). Keeping the version explicit means
+  # an upgrade is a deliberate, reviewable bump that forces a fresh deployment
+  # onto a supported version rather than silent drift that ends in a retirement
+  # outage. Note: platform_version is intentionally NOT in ignore_changes below
+  # so terraform apply rolls tasks onto the new version.
+  platform_version = var.fargate_platform_version
+
   # Fargate tasks each get their own ENI (elastic network interface) in
   # the specified subnets with the specified security group. This is why
   # target_type="ip" on the ALB target group — the ALB routes directly
