@@ -50,6 +50,21 @@ variable "container_port" {
   default     = 8080
 }
 
+# --- Platform ---
+variable "fargate_platform_version" {
+  description = <<-EOT
+    Fargate platform version for the ECS service. Pin this explicitly rather
+    than relying on "LATEST": Fargate resolves the platform version at task
+    launch and pins it for the task's lifetime, so a task launched on an older
+    version keeps running there until redeployed — and gets force-stopped when
+    AWS retires that version. Setting an explicit value (and bumping it) makes
+    PV upgrades a deliberate, reviewable change that triggers a new deployment.
+    "1.4.0" is the current supported Linux platform version.
+  EOT
+  type        = string
+  default     = "1.4.0"
+}
+
 # --- Resources ---
 variable "task_cpu" {
   description = "CPU units for the Fargate task (256 = 0.25 vCPU, 512 = 0.5, 1024 = 1 vCPU)"
