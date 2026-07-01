@@ -46,7 +46,18 @@ variable "listener_rule_priority" {
 }
 
 variable "spf_txt" {
-  description = "Optional apex SPF TXT record value (e.g. \"v=spf1 -all\" to declare the domain sends no mail). Empty string skips the record."
+  description = "Optional apex SPF TXT record value (e.g. \"v=spf1 -all\" for no mail, or \"v=spf1 include:spf.messagingengine.com -all\" for Fastmail). Empty string skips the record."
   type        = string
   default     = ""
+}
+
+variable "extra_records" {
+  description = "Additional records to create in the apex zone — e.g. mail (MX, DKIM CNAMEs, DMARC, SRV). `name` is a label relative to the zone (\"\" for the apex, or e.g. \"fm1._domainkey\" / \"_dmarc\" / \"_submission._tcp\"); type/ttl/records are standard Route 53. SPF lives in spf_txt, not here."
+  type = list(object({
+    name    = string
+    type    = string
+    ttl     = number
+    records = list(string)
+  }))
+  default = []
 }

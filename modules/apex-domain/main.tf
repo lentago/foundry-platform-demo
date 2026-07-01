@@ -139,3 +139,16 @@ resource "aws_route53_record" "spf" {
   ttl     = 300
   records = [var.spf_txt]
 }
+
+# --- Extra apex-zone records (mail: MX, DKIM CNAMEs, DMARC, SRV, ...) ---
+# Keyed by "<type>/<name>" so multiple record sets of different types can share
+# a name (e.g. apex MX + apex SPF). SPF stays in the dedicated spf resource above.
+resource "aws_route53_record" "extra" {
+  for_each = { for r in var.extra_records : "${r.type}/${r.name}" => r }
+
+  zone_id = aws_route53_zone.this.zone_id
+  name    = each.value.name == "" ? var.domain_name : "${each.value.name}.${var.domain_name}"
+  type    = each.value.type
+  ttl     = each.value.ttl
+  records = each.value.records
+}
