@@ -262,8 +262,22 @@ module "lentago_domain" {
   # Unique vs pitzilabs preview (100) and lentago preview (110).
   listener_rule_priority = 120
 
-  # lentago.dev sends no mail — preserve the "-all" SPF posture it had at Squarespace.
-  spf_txt = "v=spf1 -all"
+  # Email is on Fastmail — SPF authorizes Fastmail's senders and hard-fails the
+  # rest (lentago.dev sends only via Fastmail).
+  spf_txt = "v=spf1 include:spf.messagingengine.com -all"
+
+  # Fastmail mail DNS (MX + DKIM + DMARC). SPF is spf_txt above. SRV client-
+  # autodiscovery records can be appended here later from the Fastmail admin.
+  extra_records = [
+    # Inbound mail
+    { name = "", type = "MX", ttl = 300, records = ["10 in1-smtp.messagingengine.com", "20 in2-smtp.messagingengine.com"] },
+    # DKIM signing keys (Fastmail publishes the actual keys behind these CNAMEs)
+    { name = "fm1._domainkey", type = "CNAME", ttl = 300, records = ["fm1.lentago.dev.dkim.fmhosted.com"] },
+    { name = "fm2._domainkey", type = "CNAME", ttl = 300, records = ["fm2.lentago.dev.dkim.fmhosted.com"] },
+    { name = "fm3._domainkey", type = "CNAME", ttl = 300, records = ["fm3.lentago.dev.dkim.fmhosted.com"] },
+    # DMARC — start in monitor mode (p=none); tighten to quarantine/reject later.
+    { name = "_dmarc", type = "TXT", ttl = 300, records = ["v=DMARC1; p=none;"] },
+  ]
 }
 
 # --- Phase 4: Data Layer ---
